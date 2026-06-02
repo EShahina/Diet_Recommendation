@@ -1,20 +1,28 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# 🧠 NeuroPlate Diet Nudge AI
 
-# Run and deploy your AI Studio app
+An AI-powered food discipline and neurological diet compliance assistant designed to optimize brain and gut health. **NeuroPlate** tracks user eating consistency, analyzes micronutrient composition for neurological alignment, and issues real-time behavioral nudges and corrective tasks when meals are delayed or skipped.
 
-This contains everything you need to run your app locally.
+---
 
-View your app in AI Studio: https://ai.studio/apps/2a0f4fef-58d6-4694-b96e-31690f0c6d78
+## ✨ Features
 
-## Run Locally
+- **🛡️ Secure Cloud Sync**: Authenticated via Firebase Google Sign-In & Email schemas and backed by highly strict, owner-isolated Firestore multi-level Security Rules.
+- **📸 Intelligent Plate Recognition**: AI image scanning proxies to the Google Gemini API to identify custom food composition, macronutrient metrics, and discipline adhere scores.
+- **🎯 Dynamic Diet Formulation**: Automates generalized custom week-long diet schedules targeting neurological objectives (e.g., Epilepsy keto protocols, Migraine avoidance, ADHD focus enrichment).
+- **⚠️ Interactive Nudges**: Simulates instant smart reminders ("corrective challenges") when a user misses critical temporal eating boundaries.
+- **📊 Metric Analytics**: High-fidelity charts showing diet compliance trajectories and real-time macronutrient balances over time.
 
-**Prerequisites:**  Node.js
+---
+
+## 🛠️ Technology Stack
+
+- **Frontend**: React 18 / TypeScript, Vite, Tailwind CSS, Lucide Icons, Recharts, Framer Motion
+- **Backend / Integration**: Node.js, Express.js (custom server-side proxies)
+- **Database / Auth**: Firebase Firestore DB, Firebase Client Authentication
+- **AI Analytics**: `@google/genai` (Gemini Flash Model)
+
+---
 
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+https://remix-neuroplate-diet-nudge-ai-212145580564.asia-southeast1.run.app
+
