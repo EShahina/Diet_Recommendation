@@ -1,0 +1,7 @@
+{
+  "name": "Remix: NeuroPlate Diet Nudge AI",
+  "description": "An AI-powered food discipline assistant that tracks eating patterns, suggests healthier alternatives, and provides personalized behavioral nudges.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

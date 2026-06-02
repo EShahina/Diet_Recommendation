@@ -1,0 +1,178 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net (Default Deny Catch-all)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reuseable global security primitives and validation helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'password');
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Schema Validation Helpers
+    function isValidUserPublicProfile(data) {
+      return data.keys().hasAll(['displayName', 'registrationDate']) 
+        && data.keys().size() == 2
+        && data.displayName is string 
+        && data.displayName.size() >= 1 
+        && data.displayName.size() <= 150
+        && data.registrationDate is string 
+        && data.registrationDate.size() <= 50;
+    }
+
+    function isValidUserPrivateProfile(data) {
+      return data.keys().hasAll(['email', 'issue', 'dietPreference'])
+        && data.email is string && data.email.size() <= 150
+        && data.issue is string && data.issue.size() <= 100
+        && data.dietPreference is string && data.dietPreference.size() <= 100
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 30))
+        && (!('age' in data) || (data.age is string && data.age.size() <= 20))
+        && (!('gender' in data) || (data.gender is string && data.gender.size() <= 20))
+        && (!('weight' in data) || (data.weight is string && data.weight.size() <= 20))
+        && (!('height' in data) || (data.height is string && data.height.size() <= 20))
+        && (!('activityLevel' in data) || (data.activityLevel is string && data.activityLevel.size() <= 50))
+        && (!('customCalories' in data) || (data.customCalories is int && data.customCalories >= 1000 && data.customCalories <= 8000))
+        && (!('customProtein' in data) || (data.customProtein is int && data.customProtein >= 10 && data.customProtein <= 500))
+        && (!('customCarbs' in data) || (data.customCarbs is int && data.customCarbs >= 10 && data.customCarbs <= 1000))
+        && (!('customFat' in data) || (data.customFat is int && data.customFat >= 10 && data.customFat <= 400))
+        && (!('isUsingCustomGoals' in data) || (data.isUsingCustomGoals is bool));
+    }
+
+    function isValidMealLog(data, currentUserId) {
+      return data.keys().hasAll(['id', 'userId', 'timestamp', 'description', 'analysis']) 
+        && data.keys().size() == 5
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128 && data.userId == currentUserId
+        && data.description is string && data.description.size() <= 2000
+        && data.analysis is map;
+    }
+
+    function isValidCorrectiveTask(data, currentUserId) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'mealType', 'isCompleted', 'createdAt']) 
+        && data.keys().size() == 6
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128 && data.userId == currentUserId
+        && data.title is string && data.title.size() <= 300
+        && data.mealType is string && data.mealType.size() <= 50 && (data.mealType == 'breakfast' || data.mealType == 'lunch' || data.mealType == 'dinner')
+        && data.isCompleted is bool;
+    }
+
+    function isValidDietPlan(data, currentUserId) {
+      return data.keys().hasAll(['userId', 'title', 'weeklySchedule', 'createdAt']) 
+        && data.keys().size() == 4
+        && data.userId is string && data.userId.size() <= 128 && data.userId == currentUserId
+        && data.title is string && data.title.size() <= 200
+        && data.weeklySchedule is list && data.weeklySchedule.size() <= 10;
+    }
+
+    // Document target rules mapped from firestore configs
+    match /users/{userId} {
+      
+      match /public/profile {
+        // Anyone signed in can read public profile elements
+        allow get, list: if isSignedIn();
+        
+        allow create: if isOwner(userId)
+          && isVerified()
+          && isValidUserPublicProfile(incoming());
+          
+        allow update: if isOwner(userId)
+          && isVerified()
+          && isValidUserPublicProfile(incoming());
+          
+        allow delete: if isOwner(userId) && isVerified();
+      }
+
+      match /private/sensitive {
+        // PII Isolation: Must be verified owner
+        allow get, list: if isOwner(userId) && isVerified();
+        
+        allow create: if isOwner(userId)
+          && isVerified()
+          && isValidUserPrivateProfile(incoming());
+          
+        allow update: if isOwner(userId)
+          && isVerified()
+          && isValidUserPrivateProfile(incoming());
+          
+        allow delete: if isOwner(userId) && isVerified();
+      }
+
+      match /meals/{mealId} {
+        allow get: if isOwner(userId) && isVerified() && isValidId(mealId);
+        // Secure List Queries: evaluating resource.data.userId == request.auth.uid
+        allow list: if isOwner(userId) && isVerified();
+        
+        allow create: if isOwner(userId)
+          && isVerified()
+          && isValidId(mealId)
+          && isValidMealLog(incoming(), userId);
+          
+        allow update: if false; // Meal logs are immutable once submitted
+        allow delete: if isOwner(userId) && isVerified() && isValidId(mealId);
+      }
+
+      match /tasks/{taskId} {
+        allow get: if isOwner(userId) && isVerified() && isValidId(taskId);
+        allow list: if isOwner(userId) && isVerified();
+        
+        allow create: if isOwner(userId)
+          && isVerified()
+          && isValidId(taskId)
+          && isValidCorrectiveTask(incoming(), userId)
+          && incoming().isCompleted == false; // Mandatory incomplete creation
+          
+        allow update: if isOwner(userId)
+          && isVerified()
+          && isValidId(taskId)
+          && isValidCorrectiveTask(incoming(), userId)
+          && (
+            // Action: Toggle completion state to completed
+            (incoming().isCompleted == true && existing().isCompleted == false && incoming().diff(existing()).affectedKeys().hasOnly(['isCompleted']))
+          );
+          
+        allow delete: if isOwner(userId) && isVerified() && isValidId(taskId);
+      }
+
+      match /dietPlans/{planId} {
+        allow get: if isOwner(userId) && isVerified() && isValidId(planId);
+        allow list: if isOwner(userId) && isVerified();
+        
+        allow create: if isOwner(userId)
+          && isVerified()
+          && isValidId(planId)
+          && isValidDietPlan(incoming(), userId);
+          
+        allow update: if isOwner(userId)
+          && isVerified()
+          && isValidId(planId)
+          && isValidDietPlan(incoming(), userId);
+          
+        allow delete: if isOwner(userId) && isVerified() && isValidId(planId);
+      }
+    }
+  }
+}
